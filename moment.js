@@ -5,6 +5,20 @@ var initDate = new Date();
 var MILISECONDS_PER_DAY = 1000 * 60 * 60 * 24;
 var MILISECONDS_PER_HOUR = 1000 * 60 * 60;
 var MILISECONDS_PER_MINUTE = 1000 * 60;
+var DAY_TO_NUMBER = {
+    'ВС': 0,
+    'ПН': 1,
+    'ВТ': 2,
+    'СР': 3,
+    'ЧТ': 4,
+    'ПТ': 5,
+    'СБ': 6
+};
+var NUMBER_TO_DAY = ['ВС', 'ПН', 'ВТ', 'СР', 'ЧТ', 'ПТ', 'СБ'];
+var DAYS_CASES = ['день', 'дня', 'дней'];
+var HOURS_CASES = ['час', 'часа', 'часов'];
+var MINUTES_CASES = ['минута', 'минуты', 'минут'];
+
 
 module.exports = function (_date) {
     return {
@@ -14,39 +28,48 @@ module.exports = function (_date) {
         // А здесь часовой пояс
         timezone: 5,
 
-        set date(_date) {
-            this.dateObject = makeDateObject(_date);
+        set date(date) {
+            this.dateObject = makeDateObject(date);
         },
 
         get date() {
             return this.dateObject;
         },
 
-        format: function (pattern) {
-            var formatedDate = pattern;
-            var days = ['ВС', 'ПН', 'ВТ', 'СР', 'ЧТ', 'ПТ', 'СБ'];
-            formatedDate = formatedDate.replace(/%DD/, days[this.dateObject.getDay()]);
-            formatedDate = formatedDate.replace(
-                /%HH/, addLeadZero(this.dateObject.getUTCHours() + this.timezone)
+        format: function (formatted) {
+            formatted = formatted.replace('%DD', NUMBER_TO_DAY[this.dateObject.getDay()]);
+            formatted = formatted.replace(
+                '%HH', addLeadZero(this.dateObject.getUTCHours() + this.timezone)
             );
-            formatedDate = formatedDate.replace(
-                /%MM/, addLeadZero(this.dateObject.getUTCMinutes())
+            formatted = formatted.replace(
+                '%MM', addLeadZero(this.dateObject.getUTCMinutes())
             );
-            return formatedDate;
+            return formatted;
         },
 
         // Возвращает кол-во времени между текущей датой и переданной `moment`
         // в человекопонятном виде
         fromMoment: function (moment) {
             var milisecondsLeft = this.date.getTime() - moment.date.getTime();
+            if (milisecondsLeft < MILISECONDS_PER_MINUTE) {
+                return milisecondsLeft <= 0 ?
+                    'Ограбление уже идет!' : 'До ограбления меньше минуты.';
+            }
             var timeLeft = {};
-            timeLeft['days'] = Number.parseInt(milisecondsLeft / MILISECONDS_PER_DAY);
+            timeLeft.days = parseInt(milisecondsLeft / MILISECONDS_PER_DAY, 10);
             milisecondsLeft = milisecondsLeft % MILISECONDS_PER_DAY;
-            timeLeft['hours'] = Number.parseInt(milisecondsLeft / MILISECONDS_PER_HOUR);
+            timeLeft.hours = parseInt(milisecondsLeft / MILISECONDS_PER_HOUR, 10);
             milisecondsLeft = milisecondsLeft % MILISECONDS_PER_HOUR;
-            timeLeft['minutes'] = Number.parseInt(milisecondsLeft / MILISECONDS_PER_MINUTE);
-            return 'До ограбления: Дней: ' + timeLeft['days'] + ' Часов: ' + timeLeft['hours'] +
-                ' Минут: ' + timeLeft['minutes'];
+            timeLeft.minutes = parseInt(milisecondsLeft / MILISECONDS_PER_MINUTE, 10);
+            var result = 'До ограбления: ';
+            if (timeLeft.days > 0) {
+                result += timeLeft.days + ' ' + DAYS_CASES[getCase(timeLeft.days)] + ' ';
+            }
+            if (timeLeft.hours > 0) {
+                result += timeLeft.hours + ' ' + HOURS_CASES[getCase(timeLeft.hours)] + ' ';
+            }
+            result += timeLeft.minutes + ' ' + MINUTES_CASES[getCase(timeLeft.minutes)] + ' ';
+            return result;
         }
     };
 };
@@ -54,42 +77,40 @@ module.exports = function (_date) {
 module.exports.makeDate = function (time) {
     var parsedTime = {
         day: time.substr(0, 2),
-        hours: Number.parseInt(time.substr(3, 2)),
-        minutes: Number.parseInt(time.substr(6, 2)),
-        timezone: Number.parseInt(time.substr(8))
+        hours: parseInt(time.substr(3, 2), 10),
+        minutes: parseInt(time.substr(6, 2), 10),
+        timezone: parseInt(time.substr(8), 10)
     };
     var date = new Date(initDate.getTime());
-    var days = {
-        'ВС': 0,
-        'ПН': 1,
-        'ВТ': 2,
-        'СР': 3,
-        'ЧТ': 4,
-        'ПТ': 5,
-        'СБ': 6
-    };
-    var untilTimestampDay = (7 - initDate.getUTCDay() + days[parsedTime.day]) % 7;
+    var untilTimestampDay = (7 - initDate.getUTCDay() + DAY_TO_NUMBER[parsedTime.day]) % 7;
     date.setUTCDate(initDate.getUTCDate() + untilTimestampDay);
     date.setUTCHours(parsedTime.hours - parsedTime.timezone, parsedTime.minutes, 0, 0);
-
     return date;
 };
 
 function addLeadZero(number) {
-    if (number < 10) {
-        return '0' + number;
-    } else {
-        return number.toString();
-    }
+    return (number < 10 ? '0' : '') + number;
 }
 
-function makeDateObject(_date) {
-    if (!_date) {
+function makeDateObject(date) {
+    if (!date) {
         return;
     }
-    if (_date instanceof Date) {
-        return _date;
-    } else {
-        return module.exports.makeDate(_date);
+    if (date instanceof Date) {
+        return date;
     }
-};
+    return module.exports.makeDate(date);
+}
+
+function getCase(number) {
+    if (number % 100 >= 11 && number % 100 <= 14) {
+        return 2;
+    }
+    if (number % 10 === 1) {
+        return 0;
+    }
+    if (number % 10 >= 1 && number % 10 <= 4) {
+        return 1;
+    }
+    return 2;
+}
